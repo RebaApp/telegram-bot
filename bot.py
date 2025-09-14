@@ -1,59 +1,68 @@
-import os
+import telebot
 import json
-import requests
-from datetime import datetime
+import os
 
-TOKEN = os.environ["TELEGRAM_TOKEN"]
-API_URL = f"https://api.telegram.org/bot{TOKEN}"
+TOKEN = os.getenv("BOT_TOKEN")
 
-# Загружаем пользователей
-if os.path.exists("users.json"):
-    with open("users.json", "r") as f:
-        users = json.load(f)
-else:
-    users = []
+bot = telebot.TeleBot(TOKEN)
 
-# Загружаем цитаты
-with open("motivations.json", "r") as f:
-    motivations = json.load(f)
+USERS_FILE = "users.json"
+STATE_FILE = "state.json"
+MOTIVATIONS_FILE = "motivations.json"
 
-# Загружаем state
-if os.path.exists("state.json"):
-    with open("state.json", "r") as f:
-        state = json.load(f)
-else:
-    state = {"last_update_id": 0}
+def load_users():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
-# Функция отправки сообщений
-def send_message(chat_id, text):
-    url = f"{API_URL}/sendMessage"
-    data = {"chat_id": chat_id, "text": text}
-    requests.post(url, data=data)
+def save_users(users):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
 
-# Проверяем новые сообщения (для /start)
-updates = requests.get(f"{API_URL}/getUpdates?offset={state['last_update_id']+1}").json()
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"index": 0}
 
-for update in updates.get("result", []):
-    state["last_update_id"] = update["update_id"]
-    message = update.get("message", {})
-    chat_id = message.get("chat", {}).get("id")
-    text = message.get("text", "")
+def save_state(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
 
-    if text == "/start" and chat_id not in users:
-        users.append(chat_id)
-        send_message(chat_id, "Ты подписан на ежедневную мотивацию 🔥")
+def load_motivations():
+    if os.path.exists(MOTIVATIONS_FILE):
+        with open(MOTIVATIONS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
-# Определяем сегодняшнюю цитату
-day_of_year = datetime.utcnow().timetuple().tm_yday
-quote = motivations[(day_of_year - 1) % len(motivations)]
+@bot.message_handler(commands=["start"])
+def start(message):
+    users = load_users()
+    if message.chat.id not in users:
+        users.append(message.chat.id)
+        save_users(users)
+        bot.send_message(message.chat.id, "Ты подписался на ежедневные цитаты. Жди первую завтра!")
+    else:
+        bot.send_message(message.chat.id, "Ты уже подписан.")
 
-# Рассылаем её всем
-for chat_id in users:
-    send_message(chat_id, quote)
+def send_motivation():
+    users = load_users()
+    state = load_state()
+    motivations = load_motivations()
 
-# Сохраняем пользователей и state
-with open("users.json", "w") as f:
-    json.dump(users, f)
+    if not motivations:
+        return
 
-with open("state.json", "w") as f:
-    json.dump(state, f)
+    quote = motivations[state["index"] % len(motivations)]
+    for user in users:
+        try:
+            bot.send_message(user, quote)
+        except Exception as e:
+            print(f"Ошибка отправки {user}: {e}")
+
+    state["index"] += 1
+    save_state(state)
+
+if __name__ == "__main__":
+    send_motivation()
