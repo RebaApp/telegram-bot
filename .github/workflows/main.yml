@@ -26,6 +26,6 @@ jobs:
 
       - name: Run bot script
         env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT }}
         run: |
           python bot.py
