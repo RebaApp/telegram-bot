@@ -181,11 +181,6 @@ def stats(message):
 
 if __name__ == "__main__":
     logger.info("Запуск бота для отправки мотивационных сообщений")
-    
-    # Диагностическая информация
-    token_exists = bool(os.getenv("BOT_TOKEN"))
-    logger.info(f"BOT_TOKEN присутствует: {token_exists}")
-    
     try:
         send_motivation()
         logger.info("Бот успешно завершил работу")
